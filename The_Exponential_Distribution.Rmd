@@ -1,0 +1,197 @@
+---
+title: "The Exponential Distribution"
+author: "Julian Hatwell"
+output: pdf_document
+---
+
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo=FALSE)
+```
+
+```{r lib_lattice}
+library(lattice)
+```
+  
+## Contents
+
+* Overview
+* Simulations
+* Sample Mean vs Theoretical Mean
+* Sample Variance vs Theoretical Variance
+* Appendix: Comparing Exponential and Normal Distributions
+
+## Overview
+
+This document will use the Exponential distribution to investigate the Central Limit Theorem, which states that the _distribution of sample averages_ of any iid variables becomes that of a standard normal as the sample size increases, no matter what the distribution of the population from which the samples are drawn.
+
+The Exponential distribution makes a good case study as it has very different properties to the Normal distribution.
+
+This investigation uses simulations carried out in the R programming environment.
+
+## Simulations
+
+The following code sets up all the parameters and constants, as well as the random seed for reproducibility:
+
+```{r set_params, echo=TRUE}
+# here are all the standard parameters. Can be tweaked for more further investigations
+set.seed(10) # reprodicibility
+lambda <- 0.2 # lambda for random samples
+sim_size <- 1000 # simulation size
+smpl_size <- 40 # sample size, each simulation
+```
+
+The following code runs the simulations. A for loop is used with the rexp (random exponential) function and the mean and var statistics are collected inside the loop.
+  
+```{r run_sims, echo=TRUE}
+# create some empty vectors to fill with sim data
+mn_smpl <- numeric(sim_size)
+var_smpl <- numeric(sim_size)
+# iterate over the random simulation and collect the results by vector index
+for (i in 1:sim_size) {
+smpl <- rexp(smpl_size, lambda)
+mn_smpl[i] <- mean(smpl)
+var_smpl[i] <- var(smpl)
+}
+# put everything in a data frame to make it easy to work with
+sim_data <- data.frame(means = mn_smpl, variances = var_smpl, st_devs = sqrt(var_smpl))
+```
+
+
+## Sample Mean vs Theoretical Mean
+
+Interrogating the sample mean data shows that the mean and st. dev are indeed very close to 1/lambda (`r 1/lambda`), which are the expected mean and st.dev for the Exponential distribution with lambda value = `r lambda`:
+
+```{r summary_table_sample_mean}
+stats <- list(sample_mean = mean(mn_smpl)
+              , sample_variance = mean(var_smpl)
+              , sample_st_dev = sqrt(mean(var_smpl)))
+stats
+```
+
+The following density plot shows the distribution of mean values from the simulation. Superimposed on this is a PDF of the Standard Normal distribution, shifted to centre on a mean of `r 1/lambda` (1/lambda). 
+
+```{r density_sample_means}
+densityplot(~means, sim_data, bw = .5, lwd = 1.5, cex = 0.5
+            , panel = function(x,...) {
+                panel.densityplot(x,..., col = "blue")
+                x <- seq(0, 10, 0.1)
+                y <- dnorm(x, mean = 5, sd = 1)
+                panel.xyplot(x,y,..., type = "l", lty = 2, col = "magenta")               }
+            , main = list(label = "Density plot of sample means from the simulation"
+                    , cex = 0.9)
+            , xlab = "sample mean"
+            , ylab = "Probability"
+            , key = list(text = list(
+                c("density of sample means"
+                , "normal curve"))
+              , columns = 2
+              , lines = list(
+                  col = c("blue", "magenta")
+                , lty = c(1,2))))
+```
+
+It is clear from the above graph that these are very similar curves. The distribution of the sample means is a very close approximation of the normal distribution.
+
+## Sample Variance vs Theoretical Variance
+
+This step will compare the variance and standard deviation of the sample means to the theoretical mean given as the formula s/sqrt(n).
+
+The variance of the sample means should be close to `r 1/lambda`/sqrt(`r smpl_size`) = `r 1/lambda`/`r sqrt(smpl_size)` = `r (1/lambda)/sqrt(smpl_size)`
+
+```{r sample_vs_theoretical_var, echo=TRUE}
+stats <- data.frame(
+  theoretical_var = (1/lambda)^2/smpl_size
+  , theoretical_sd = (1/lambda)/sqrt(smpl_size)
+  , simulation_var = var(sim_data$means)
+  , simulation_sd = sd(sim_data$means))
+stats
+```
+
+The simulation statistics are very close to the theoretical statistics.
+
+## Appendix: Comparing Exponential and Normal Distributions
+
+For completeness, more random variables are generated from the exponential function to see the difference between a large collection of random exponentials and the distribution of a large collection of averages of random variables.
+
+The following plot shows the distribution of 1000 random variables with an exponential distribution. Superimposed on this is a PDF of the Normal distribution, shifted to centre on the mean of `r 1/lambda` (1/lambda) and a st.dev of `r 1/lambda`.
+
+```{r density_sample_exp}
+densityplot(rexp(1000, lambda), bw = 0.5, lwd = 1.5, lty = 2, cex = 0.5
+            , panel = function(x,...) {
+                panel.densityplot(x,..., col = "blue")
+                x <- seq(-10, 20, 0.1)
+                y <- dnorm(x, mean = 1/lambda, sd = 1/lambda)
+                panel.xyplot(x,y,..., type = "l", col = "magenta")   
+            }
+            , prepanel = function(x,...) { 
+                list(xlim = c(-10, max(x))) 
+            }
+            , main = list(label = "Density plot of 1000 Exponential random variables"
+                          , cex = 0.9)
+            , xlab = "Value"
+            , ylab = "Probability"
+            , key = list(text = list(c("density of random vars", "standard normal")), columns = 2, lines = list(col = c("blue", "magenta"), lty = c(1,2))))
+```
+
+The differences are visually apparent. From this graph, it can be seen that the Exponential distribution has the characteristic of having p = 0 for values of x < 0. The first positive value of x has p = lambda (`r lambda`), then p drops off sharply until a long tail of higher values.
+
+In contrast, the normal distribution is symmetrical about its mean and the standard normal has mean zero, implying negative values are just as probable as positive values.
+
+This demonstrates the Central Limit Theorem by showing that a large sample of avarages will tend to be themselves normally distributed, even though the random variables themselves are very differently distributed.
+
+## Appendix 2: Law of Large Numbers in Action
+
+This was was added after reviewing peer reports and deadlines, for the purpose of increasing learning. Credit to the other students, I don't know who they are, for coming up with this. Minor adaptations to do a lattice plot (my preference).
+
+```{r lln_in_action}
+#mn_smpl[i] <- mean(smpl)
+#var_smpl[i] <- var(smpl)
+incr_mn <- cumsum(mn_smpl) / (1 : length(mn_smpl)) #incremental calc of means
+xyplot(incr_mn ~ (1:length(incr_mn)), t = "l"
+        , panel = function(...) {
+            panel.abline(h=5, lty = "dotted", col = "black")
+            panel.xyplot(...) 
+            }
+        , xlab = "Number of simulations"
+        , ylab = "Mean value"
+        , main = "Sample Mean: Convergence to Theoretical Value")
+
+#incremental calculation of variances for means in vector sample.means
+#variance needs at least two numbers
+incr_vars <- numeric(length = sim_size - 1)
+for (i in 1:length(incr_vars)) #variance needs at least two numbers
+incr_vars[i] <- var(mn_smpl[1:(i+1)])
+#plot the variance convergence to the theoretical value
+xyplot(incr_vars ~ 1:length(incr_vars), t = "l"
+      , panel = function(...) {
+          panel.abline(h=((1/lambda)/sqrt(smpl_size))^2, lty = "dotted", col = "black")
+          panel.xyplot(...) 
+          }
+      , xlab = "Number of simulations"
+      , ylab = "Variance value"
+      , main = "Variance of the Sample Mean: Convergence to Theoretical Value")
+
+```
+
+## Appendix 3 Using the maths to compare the simulation to the normal distribution.
+
+This was was added after reviewing peer reports and deadlines, for the purpose of increasing learning. Credit to the other students, I don't know who they are, for coming up with this.
+
+"To [quantify] the extent to which the empirical distribution is approximately normal, the following computes how much
+area (amount of data) is captured by going 1 standard deviation in either direction from the mean, by going
+1.96 standard deviations in either direction, and by going 2.58 standard deviations in either direction. For
+a normal distribution, these correspond to the 68%, 95%, and 99% confidence intervals, respectively."
+
+```{r caclulate_area_under_simulation_distribution}
+q68 <- mean(mn_smpl) + c(-1, 1) * 1 * sd(mn_smpl)
+means68 <- mn_smpl[mn_smpl >= q68[1] & mn_smpl <= q68[2]]
+sum(means68)/sum(mn_smpl)
+
+q95 <- mean(mn_smpl) + c(-1, 1) * 1.96 * sd(mn_smpl)
+means95 <- mn_smpl[mn_smpl >= q95[1] & mn_smpl <= q95[2]]
+sum(means95)/sum(mn_smpl)
+
+q99 <- mean(mn_smpl) + c(-1, 1) * 2.58 * sd(mn_smpl)
+means99 <- mn_smpl[mn_smpl >= q99[1] & mn_smpl <= q99[2]]
+sum(means99)/sum(mn_smpl)
+```

@@ -1,0 +1,203 @@
+---
+title: "Regression Analysis of mtcars data"
+author: "Julian Hatwell"
+output: pdf_document
+---
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, echo=FALSE, fig.height=3, fig.width=5)
+```
+#### Introduction
+
+Using data was extracted from the 1974 Motor Trend US magazine this report will try to explain whether an automatic or manual transmission better for MPG and quantify the difference.
+
+## Executive Summary
+
+Initially comparing miles per gallon (mpg) to transmission type (trans, either "Automatic" or "Manual") shows an apparently significant difference between the two classes of trans of between 4.7 and 9.8 mpg better for Manual trans compared to Automatic.
+
+However, deeper investigation applying linear modeling revealed that the vehicles' overall weight (wt) was the defining variable with a strong negative trend which was more pronounced for Manual trans. In other words, the mpg performance of heavier manual cars would be much worse than heavier automatic cars.
+
+The reason this was immediately obvious was because the dataset is not evenly distributed by weight. The manual cars included in the dataset are on average 1400lbs lighter than the Automatic cars.
+
+From the linear modelling, it can be inferred that:
+
+_Automatic cars lose between 3.0 and 4.6 mpg per 1000lbs additional weight_  
+_Manual cars lose between 6.9 and 11.3 mpg per 1000lbs additional weight_
+
+Further refinement of the model was achieved by including the Quarter Mile Time (qsec) measure of vehicle acceleration. The measure is positively correlated with mpg. A higher qsec would indicate a slower acceleration. 
+
+_Both automatic and manual cars have improved mpg ratings by a factor of 1.02 for every additional second of qsec._
+
+Any advice for the car buyer who is conscious of fuel economy would be to prefer a lighter vehicle above all and then select a manual car which scored at the low end of the range on acceleration times.
+
+Needless to say that any inferences drawn from this data relate to cars manufactured in the 1970's. It would be wrong to apply these conclusions to cars in 2015.
+
+### Exploratory Data Analysis
+
+```{r graph_libs}
+# Both lattice and ggplot2 are utilised during this investigation
+# As well as corrgram for creating a correlogram of the variables in the data set.
+
+library(lattice)
+library(ggplot2)
+library(corrgram)
+```
+
+```{r pretty_labels}
+# The following code adds commonly used labels to save code repetition.
+mtcars$trans <- factor(mtcars$am, labels = c("Automatic", "Manual"))
+```
+
+A boxplot was generated to look at the two vehicle types side by side. See Appendix A.
+
+From the plot, it appears that manual trans has better mpg. However, there are a number of other variables in car design which may have an effect on mpg. It is necessary to determine which of these may be contributing or confounding the results. This can be done through comparison of linear models.
+
+### Regression Model Selection step by step
+
+The first model to be explored is the known relationship between mpg and transmission. This will be the benchmark when looking for the best fitting model.
+
+```{r lm_mpg_trans}
+lm1 <- lm(mpg~trans, data = mtcars)
+lm1$coefficients
+summary(lm1)$r.squared
+```
+
+The lm summary gives the trans coefficient as 7.245 with a standard error of 1.764 (not shown). This can be interpreted as a gain of between 5.5 to 9.0 mpg. However, it can be seen from the R squared value that this model only explains 36% of the variation and there is still a lot of residual variation not explained by the model.
+
+In order to select the variables of most interest for modelling, a correlogram of the whole data set is produced. See Appendix B.
+
+From the corrgram, mpg appears to be positively correlated with vs, drat, gear and qsec in addition to am. 
+
+Of these, gear and drat are also strongly correlated with am, and so it is not useful to include them in any further modelling.
+
+vs is weakly correlated with am and qsec is weakly negatively correlated, so these may be of interest. They are initially put aside to see if a good enough fit can be developed without them.
+
+Furthermore wt, disp, cyl, hp and carb all appear to have strong negative correlations with mpg and strong positive correlations with each other. This is definitely of interest but it is important to select only one of them. They all relate to car or engine size/weight.
+
+cyl and carb are both factor (count) variables of specific engine components, which would naturally be expected to increase with overall engine size. This is reflected in the corrgram. These will be excluded from further investigation.
+
+Regression modeling is used to determine which of the continuous variables of size/weight is the most significant for this analysis:
+
+```{r lm_mpg_disp_wt_hp}
+lm2 <- lm(mpg~wt + disp + hp, data = mtcars)
+lm2$coefficients
+summary(lm2)$r.squared
+```
+
+From the coefficient table it can be seen that wt has the strongest negative correlation. The others are not on the same scale and so will be excluded from further investigation.
+
+The coefficient of -3.80 with a standard error of plus/minus 1.066191 (not shown) implies that for every 1000lb additional weight, a vehicle may lose up to 4.8mpg.
+
+Furthermore, this R squared statistic of 82.7% explains far more of the variance than the transmission model. 
+
+This warrants a closer look at the relationship between weight and transmission type. A dot plot is generated to show how the weights are distributed. See Appendix C
+
+This is very problematic for the simplistic model because, on average, the automatic cars in the dataset are over 1400lbs heavier than the manual cars. The manual cars in this sample will inevitably report a large improvement on mpg if weight is not factored into the model.
+
+A model using wt interacting with trans is produced:
+
+```{r lm_mpg_trans_wt}
+lm3 <- lm(mpg~wt * trans, data = mtcars)
+lm3$coefficients
+summary(lm3)$r.squared
+```
+
+This model now explains just over 83% of the variation.
+
+To seek any further improvements to the model there are two options.
+
+1. Add more variables to the model. 
+
+2. Perform some diagnostics on the existing model to determine if any systematic effects or influential outliers.
+
+Option 1 is not very attractive at this point because only vs and qsec have not been included yet but are known to be weakly correlated. Option 2 is followed. See Appendix D for Residual Plots.
+
+There are a small number (2-4) of vehicles that appear to have unexpectedly high mpg given their weight and so a plot is made to reveal where they sit in relation to the other data points. Also, using the coefficients from the current linear model, two lines are added to show how mpg is dropping off with wt much more rapidly for manual vehicles. See Appendix E. 
+
+It is decided that these points need to remain in the model. Removing them is potentially going to make prediction more accurate but is unlikely to affect the overall trends, which still hold. 
+
+Two improve on the model, the two remaining variables (vs and qsec) were investigated. It was found that 3 of the vehicles with unexpectedly high mpg were near the top for qsec. See Appendix F.
+
+Two further models are created using qsec. The first is independent of trans and the second is interacting with trans. The results are tested with ANOVA. See Appendix G for the full results.
+
+The R squared value has jumped up 6 percentage points to 89%-90%.
+
+This is a significant increase with model lm4 improvement given the F statistic of 16.28 and very small P of 0.0005.
+
+Any further improvement from lm5 is too small and scores very poorly (p = 0.676) and so lm5 is rejected in favour of the more parsimonious lm4.
+
+Diagnostic plots show that the problems with the lm3 model have been reduced. These are not included here for brevity.
+
+It is decided from this information that the preferred regression model is that of mpg depending on weight interacting with transmission type and favouring vehicles with a lesser acceleration.
+
+## Appendices
+
+#### Appendix A.
+```{r bwplot_mpg_trans}
+bwplot(mpg~trans, mtcars, box.ratio = 0.5
+       , main = "Box and whisker plot of mpg from mtcars"
+       , xlab = "Transmission type"
+       , ylab = "miles per gallon")
+```
+
+#### Appendix B.
+```{r corrgram_mtcars, fig.height=4}
+library(corrgram)
+corrgram(mtcars, order=TRUE, lower.panel=panel.pie,
+         upper.panel=panel.ellipse
+         , text.panel=panel.txt,
+         main="Correlogram of mtcars")
+```
+
+#### Appendix C.
+```{r dotplot_wt_trans, fig.height=4}
+dotplot(wt ~ trans, data = mtcars, type = c("p", "a")
+        , main = "Distribution of vehicle weights by transmission"
+        , xlab = "Transmission type"
+        , ylab = "Weight (1000lb)")
+```
+
+#### Appendix D.
+```{r model_diagnostic_plot1}
+plot(lm3, which = 1)
+```
+
+```{r model_diagnostic_plot2}
+plot(lm3, which = 2)
+```
+
+#### Appendix E.
+```{r scatter_outliers, fig.height=2}
+mtcars$dgn <- factor(1 * rownames(mtcars) %in% c("Fiat 128", "Toyota Corolla", "Merc 240D", "Chrysler Imperial"),labels = c("Normal", "Outlier"))
+coeffs <- lm3$coefficients
+g <- ggplot(data = mtcars, aes(x = wt, y = mpg, colour = trans, shape = dgn, size = dgn))
+g <- g + geom_point() + scale_size_discrete("diagnostic", range = (c(1, 3))) + scale_shape_discrete("diagnostic")
+g <- g + geom_abline(intercept = coeffs[1]
+                     , slope = coeffs[2], colour = 2, alpha = 0.5)
+g <- g + geom_abline(intercept = coeffs[1] + coeffs[3]
+                     , slope = coeffs[2] + coeffs[4], colour = 5, alpha = 0.5)
+g <- g + labs(title = "mpg by weight \nshowing trends for transmission type \n and highlighting outliers"
+                        , x = "Weight (1000lbs)"
+                        , y = "miles per gallon") + theme(plot.title = element_text(size=8))
+g
+```
+
+### Appendix F.
+For brevity, only the top results are shown for qsec as this turned out to be of interest:
+
+```{r remaining_variables}
+head(mtcars[order(mtcars$qsec, decreasing = TRUE),c("qsec","dgn")], 8)
+```
+
+#### Appendix G.
+ANOVA of candidate linear models:
+```{r lm_mpg_trans_wt_qsec, echo=TRUE}
+lm4 <- lm(mpg~wt * trans + qsec, data = mtcars)
+lm4$coefficients
+summary(lm4)$r.squared
+
+lm5 <- lm(mpg~wt * trans + qsec * trans, data = mtcars)
+lm5$coefficients
+summary(lm5)$r.squared
+
+anova(lm3, lm4, lm5)
+```
